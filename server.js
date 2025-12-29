@@ -41,6 +41,33 @@ const buildWhere = (req) => {
   return where;
 };
 
+/* =========================
+   DYNAMIC BATCH FILTER (FIX)
+========================= */
+app.get("/filters/batches", async (req, res) => {
+  try {
+    const where = {};
+    if (req.query.class_number) {
+      where.class_number = req.query.class_number;
+    }
+
+    const rows = await StudentMarks.findAll({
+      attributes: [
+        [Sequelize.fn("DISTINCT", Sequelize.col("batch")), "batch"],
+      ],
+      where,
+      raw: true,
+    });
+
+    res.json({
+      success: true,
+      data: rows.map((r) => r.batch),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 /* =====================================================
    BAR CHART 1️⃣ PERFORMANCE DISTRIBUTION
 ===================================================== */
@@ -48,7 +75,7 @@ app.get("/charts/performance-distribution", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "admission_no",
         [Sequelize.literal("AVG(scored_mark / max_mark) * 100"), "percentage"],
@@ -57,13 +84,13 @@ app.get("/charts/performance-distribution", async (req, res) => {
       group: ["admission_no"],
     });
 
-    const ranges = { "90–100": 0, "75–89": 0, "50–74": 0, "<50": 0 };
+    const ranges = { "90-100": 0, "75-89": 0, "50-74": 0, "<50": 0 };
 
-    data.forEach((d) => {
-      const pct = Number(d.dataValues.percentage);
-      if (pct >= 90) ranges["90–100"]++;
-      else if (pct >= 75) ranges["75–89"]++;
-      else if (pct >= 50) ranges["50–74"]++;
+    rows.forEach((r) => {
+      const p = Number(r.dataValues.percentage);
+      if (p >= 90) ranges["90-100"]++;
+      else if (p >= 75) ranges["75-89"]++;
+      else if (p >= 50) ranges["50-74"]++;
       else ranges["<50"]++;
     });
 
@@ -86,7 +113,7 @@ app.get("/charts/subject-pass-fail", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "subject",
         [
@@ -96,7 +123,7 @@ app.get("/charts/subject-pass-fail", async (req, res) => {
               "CASE WHEN (scored_mark / max_mark) * 100 >= 40 THEN 1 ELSE 0 END"
             )
           ),
-          "pass_count",
+          "pass",
         ],
         [
           Sequelize.fn(
@@ -105,7 +132,7 @@ app.get("/charts/subject-pass-fail", async (req, res) => {
               "CASE WHEN (scored_mark / max_mark) * 100 < 40 THEN 1 ELSE 0 END"
             )
           ),
-          "fail_count",
+          "fail",
         ],
       ],
       where,
@@ -114,9 +141,9 @@ app.get("/charts/subject-pass-fail", async (req, res) => {
 
     res.json({
       success: true,
-      data: data.flatMap((d) => [
-        { subject: d.subject, term: "Pass", avg_score: d.dataValues.pass_count },
-        { subject: d.subject, term: "Fail", avg_score: d.dataValues.fail_count },
+      data: rows.flatMap((r) => [
+        { subject: r.subject, term: "Pass", avg_score: r.dataValues.pass },
+        { subject: r.subject, term: "Fail", avg_score: r.dataValues.fail },
       ]),
     });
   } catch (err) {
@@ -131,7 +158,7 @@ app.get("/charts/subject-average", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "subject",
         [Sequelize.literal("AVG(scored_mark / max_mark) * 100"), "avg_score"],
@@ -142,9 +169,9 @@ app.get("/charts/subject-average", async (req, res) => {
 
     res.json({
       success: true,
-      data: data.map((d) => ({
-        subject: d.subject,
-        avg_score: Number(d.dataValues.avg_score).toFixed(2),
+      data: rows.map((r) => ({
+        subject: r.subject,
+        avg_score: Number(r.dataValues.avg_score).toFixed(2),
       })),
     });
   } catch (err) {
@@ -153,13 +180,13 @@ app.get("/charts/subject-average", async (req, res) => {
 });
 
 /* =====================================================
-   BAR CHART 4️⃣ TERM COMPARISON
+   BAR CHART 4️⃣ TERM COMPARISON (GROUPED)
 ===================================================== */
 app.get("/charts/term-comparison", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "subject",
         "term",
@@ -171,24 +198,25 @@ app.get("/charts/term-comparison", async (req, res) => {
 
     res.json({
       success: true,
-      data: data.map((d) => ({
-        subject: d.subject,
-        term: d.term,
-        avg_score: Number(d.dataValues.avg_score).toFixed(2),
+      data: rows.map((r) => ({
+        subject: r.subject,
+        term: r.term,
+        avg_score: Number(r.dataValues.avg_score).toFixed(2),
       })),
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 /* =====================================================
-   BAR CHART 5️⃣ REPORT SUBJECT AVG (Backend A)
+   BAR CHART 5️⃣ REPORT SUBJECT AVG
 ===================================================== */
 app.get("/charts/report-subject-avg", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "subject",
         [Sequelize.literal("AVG(scored_mark / max_mark) * 100"), "avg_score"],
@@ -197,20 +225,20 @@ app.get("/charts/report-subject-avg", async (req, res) => {
       group: ["subject"],
     });
 
-    res.json({ success: true, data });
+    res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 /* =====================================================
-   BAR CHART 6️⃣ REPORT TERM AVG (Backend A)
+   BAR CHART 6️⃣ REPORT TERM AVG
 ===================================================== */
 app.get("/charts/report-term-avg", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const data = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "term",
         [Sequelize.literal("AVG(scored_mark / max_mark) * 100"), "avg_score"],
@@ -219,12 +247,11 @@ app.get("/charts/report-term-avg", async (req, res) => {
       group: ["term"],
     });
 
-    res.json({ success: true, data });
+    res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 /* =====================================================
    TABLE 1️⃣ TOP 5 STUDENTS – OVERALL
@@ -233,29 +260,25 @@ app.get("/table/top-students-overall", async (req, res) => {
   try {
     const where = buildWhere(req);
 
-    const students = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "admission_no",
         "student_name",
-        "class_number",
-        "batch",
         [Sequelize.literal("AVG(scored_mark / max_mark) * 100"), "avg_marks"],
       ],
       where,
-      group: ["admission_no", "student_name", "class_number", "batch"],
+      group: ["admission_no", "student_name"],
       order: [[Sequelize.literal("avg_marks"), "DESC"]],
       limit: 5,
     });
 
     res.json({
       success: true,
-      data: students.map((s, i) => ({
+      data: rows.map((r, i) => ({
         rank: i + 1,
-        admission_no: s.admission_no,
-        student_name: s.student_name,
-        class_number: s.class_number,
-        batch: s.batch,
-        avg_marks: Number(s.dataValues.avg_marks).toFixed(2),
+        admission_no: r.admission_no,
+        student_name: r.student_name,
+        avg_marks: Number(r.dataValues.avg_marks).toFixed(2),
       })),
     });
   } catch (err) {
@@ -264,78 +287,115 @@ app.get("/table/top-students-overall", async (req, res) => {
 });
 
 /* =====================================================
-   TABLE 2️⃣ TOP STUDENTS – SUBJECT WISE
+   TABLE 2️⃣ TOP STUDENTS – SUBJECT
 ===================================================== */
 app.get("/table/top-students-subject", async (req, res) => {
   try {
-    const where = buildWhere(req);
+    const where = {};
+    if (req.query.class_number && req.query.class_number !== "ALL") {
+      where.class_number = req.query.class_number;
+    }
+    if (req.query.batch && req.query.batch !== "ALL") {
+      where.batch = req.query.batch;
+    }
 
-    const students = await StudentMarks.findAll({
+    const rows = await StudentMarks.findAll({
       attributes: [
         "subject",
         "student_name",
-        "admission_no",
-        [Sequelize.literal("(scored_mark / max_mark) * 100"), "percentage"],
+        "class_number",
+        "batch",
+
+        [Sequelize.fn("SUM", Sequelize.col("scored_mark")), "total_marks"],
+        [
+          Sequelize.literal(
+            "ROUND(AVG(scored_mark / max_mark) * 100, 2)"
+          ),
+          "avg_score",
+        ],
       ],
       where,
-      order: [[Sequelize.literal("percentage"), "DESC"]],
-      limit: 5,
+      group: ["subject", "student_name", "class_number", "batch"],
+      order: [
+        ["subject", "ASC"],
+        [Sequelize.literal("avg_score"), "DESC"],
+      ],
+      raw: true,
+    });
+
+    /* 🔢 ADD RANK PER SUBJECT (IMPORTANT PART) */
+    const ranked = {};
+    const finalData = [];
+
+    rows.forEach((r) => {
+      if (!ranked[r.subject]) ranked[r.subject] = 1;
+
+      finalData.push({
+        rank: ranked[r.subject]++,
+        subject: r.subject,
+        student_name: r.student_name,
+        total_marks: r.total_marks,
+        avg_score: r.avg_score,
+        class_number: r.class_number,
+        batch: r.batch,
+      });
     });
 
     res.json({
       success: true,
-      data: students.map((s, i) => ({
-        rank: i + 1,
-        subject: s.subject,
-        student_name: s.student_name,
-        admission_no: s.admission_no,
-        percentage: Number(s.dataValues.percentage).toFixed(2),
-      })),
+      data: finalData.slice(0,5), // top students
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 /* =====================================================
-   TABLE 3️⃣ LEADERBOARD (Backend A)
+   TABLE 3️⃣ LEADERBOARD (BASED ON REPORT AVERAGES)
 ===================================================== */
 app.get("/table/leaderboard", async (req, res) => {
   try {
     const where = buildWhere(req);
 
     const rows = await StudentMarks.findAll({
+      attributes: [
+        "student_name",
+        "class_number",
+        "batch",
+        [
+          Sequelize.literal(
+            "ROUND(AVG(scored_mark / max_mark) * 100, 2)"
+          ),
+          "percentage",
+        ],
+      ],
       where,
-      order: [["created_at", "DESC"]],
+      group: ["student_name", "class_number", "batch"],
+      order: [[Sequelize.literal("percentage"), "DESC"]],
       raw: true,
     });
 
-    const map = {};
-    rows.forEach((r) => {
-      if (!map[r.admission_no]) {
-        map[r.admission_no] = {
-          admission_no: r.admission_no,
-          student_name: r.student_name,
-          total: 0,
-          max: 0,
-        };
-      }
-      map[r.admission_no].total += r.scored_mark;
-      map[r.admission_no].max += r.max_mark;
+    const leaderboard = rows.map((r, index) => ({
+      rank: index + 1,
+      student_name: r.student_name,
+      class_number: r.class_number,
+      batch: r.batch,
+      percentage: r.percentage,
+    }));
+
+    res.json({
+      success: true,
+      data: leaderboard.slice(0, 5),
     });
-
-    const leaderboard = Object.values(map)
-      .map((s) => ({
-        ...s,
-        percentage: ((s.total / s.max) * 100).toFixed(2),
-      }))
-      .sort((a, b) => b.percentage - a.percentage)
-      .map((s, i) => ({ rank: i + 1, ...s }));
-
-    res.json({ success: true, data: leaderboard });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 /* =========================
    START SERVER
 ========================= */
