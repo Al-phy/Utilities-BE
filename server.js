@@ -24,6 +24,7 @@ app.post("/users/register", async (req, res) => {
       return res.json({
         success: false,
         message: "User with this email already exists",
+        from_b:true
       });
     }
 
