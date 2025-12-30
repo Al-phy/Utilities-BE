@@ -421,12 +421,10 @@ app.get("/table/top-students-subject", async (req, res) => {
 
 
 /* =====================================================
-   TABLE 3️⃣ LEADERBOARD (BASED ON REPORT AVERAGES)
+   TABLE 3️⃣ LEADERBOARD (GLOBAL TOP 5 – ALL CLASSES & DIVISIONS)
 ===================================================== */
 app.get("/table/leaderboard", async (req, res) => {
   try {
-    const where = buildWhere(req);
-
     const rows = await StudentMarks.findAll({
       attributes: [
         "student_name",
@@ -439,13 +437,12 @@ app.get("/table/leaderboard", async (req, res) => {
           "percentage",
         ],
       ],
-      where,
       group: ["student_name", "class_number", "batch"],
       order: [[Sequelize.literal("percentage"), "DESC"]],
       raw: true,
     });
 
-    const leaderboard = rows.map((r, index) => ({
+    const leaderboard = rows.slice(0, 5).map((r, index) => ({
       rank: index + 1,
       student_name: r.student_name,
       class_number: r.class_number,
@@ -455,13 +452,14 @@ app.get("/table/leaderboard", async (req, res) => {
 
     res.json({
       success: true,
-      data: leaderboard.slice(0, 5),
+      data: leaderboard,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 
 /* =========================
