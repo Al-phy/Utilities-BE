@@ -1,12 +1,80 @@
 import express from "express";
 import cors from "cors";
+import sequelize from "./src/config/db.js";
 import { Sequelize } from "sequelize";
 import StudentMarks from "./src/models/Student.js";
+import User from "./src/models/User.js";
 import { importStudentMarks } from "./src/readCsv.js";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: "http://localhost:5173" }));
+app.use(express.json()); 
+
+// REGISTER
+app.post("/users/register", async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+
+    if (!username || !email || !password) {
+      return res.json({ success: false, message: "All fields required" });
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.json({
+        success: false,
+        message: "User with this email already exists",
+      });
+    }
+
+    const newUser = await User.create({ username, email, password });
+
+    res.json({
+      success: true,
+      message: "Registration successful",
+      data: newUser,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// LOGIN
+app.post("/users/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.json({
+        success: false,
+        message: "Email and password required",
+      });
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    if (user.password !== password) {
+      return res.json({ success: false, message: "Incorrect password" });
+    }
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 
 /* =========================
    HEALTH CHECK
@@ -399,6 +467,20 @@ app.get("/table/leaderboard", async (req, res) => {
 /* =========================
    START SERVER
 ========================= */
-app.listen(4000, () => {
-  console.log("Server running on http://localhost:4000");
-});
+const startServer = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("Database connected");
+
+    // 🔥 THIS LINE CREATES THE TABLE
+    await sequelize.sync();
+
+    app.listen(4000, () => {
+      console.log("Server running on http://localhost:4000");
+    });
+  } catch (error) {
+    console.error("Database connection failed:", error);
+  }
+};
+
+startServer();
