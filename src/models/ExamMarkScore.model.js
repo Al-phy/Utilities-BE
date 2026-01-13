@@ -1,5 +1,5 @@
 import { DataTypes } from "sequelize";
-import sequelize from "../db.js";
+import sequelize from "../config/db.js";
 import Student from "./Student.model.js";
 import ExamMarkEntry from "./ExamMarkEntry.model.js";
 
