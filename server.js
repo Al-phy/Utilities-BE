@@ -4,12 +4,14 @@ import sequelize from "./src/config/db.js";
 import { Sequelize } from "sequelize";
 import StudentMarks from "./src/models/Student.js";
 import User from "./src/models/User.js";
+import ExamMarkEntry from "./src/models/ExamMarkEntry.model.js";
+import ExamMark from "./src/models/ExamMarkScore.model.js";
+import Student from "./src/models/Student.model.js";
 import { importStudentMarks } from "./src/readCsv.js";
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json()); 
-
 // REGISTER
 app.post("/users/register", async (req, res) => {
   try {
@@ -76,7 +78,8 @@ app.post("/users/login", async (req, res) => {
   }
 });
 
-
+/* ROUTES */
+app.use("/students",ExamMarkEntry);
 /* =========================
    HEALTH CHECK
 ========================= */

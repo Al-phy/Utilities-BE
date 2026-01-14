@@ -29,9 +29,6 @@ router.get("/students", students);
 router.get("/years", years);
 
 
-
-
-
 /* ✅ EXAM MARK ENTRY */
 router.post("/exams/marks", saveExamMarks);
 router.put("/exams/marks", updateExamMarks);

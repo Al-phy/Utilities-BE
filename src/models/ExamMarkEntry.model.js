@@ -1,5 +1,5 @@
 import { DataTypes } from "sequelize";
-import sequelize from "../db.js";
+import sequelize from "../config/db.js";
 
 const ExamMarkEntry = sequelize.define(
   "exam_mark_entries",
