@@ -2,7 +2,7 @@ import { Sequelize } from "sequelize";
 import Student from "../models/Student.model.js";
 import ExamMarkEntry from "../models/ExamMarkEntry.model.js";
 import ExamMark from "../models/ExamMarkScore.model.js";
-import { Op } from "sequelize";
+import { Sequelize } from "sequelize";
 
 /* ================= CLASSES ================= */
 export async function getClasses() {

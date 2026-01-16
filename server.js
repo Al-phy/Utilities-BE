@@ -4,14 +4,17 @@ import sequelize from "./src/config/db.js";
 import { Sequelize } from "sequelize";
 import StudentMarks from "./src/models/Student.js";
 import User from "./src/models/User.js";
-import ExamMarkEntry from "./src/models/ExamMarkEntry.model.js";
-import ExamMark from "./src/models/ExamMarkScore.model.js";
-import Student from "./src/models/Student.model.js";
 import { importStudentMarks } from "./src/readCsv.js";
-
+import attendanceRoutes from "./src/attendance/attendance.routes.js";
+import commonRoutes from "./src/apps/common/commonRoutes.js";
+import reportRoutes from "./src/apps/reports/reportRoutes.js";
 const app = express();
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({origin: "http://localhost:5173" }));
 app.use(express.json()); 
+app.use("/attendance", attendanceRoutes);
+app.use("/api/common", commonRoutes);
+app.use("/api/", reportRoutes); 
+
 // REGISTER
 app.post("/users/register", async (req, res) => {
   try {
@@ -78,8 +81,6 @@ app.post("/users/login", async (req, res) => {
   }
 });
 
-/* ROUTES */
-app.use("/students",ExamMarkEntry);
 /* =========================
    HEALTH CHECK
 ========================= */
@@ -98,7 +99,6 @@ app.post("/import-csv", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 /* =========================
    COMMON FILTER BUILDER
 ========================= */
@@ -112,15 +112,49 @@ const buildWhere = (req) => {
   }
   return where;
 };
+/* =========================
+   GET STUDENTS FOR ATTENDANCE (WORKING)
+========================= */
+app.get("/students", async (req, res) => {
+  try {
+    const { class_number, batch } = req.query;
+
+    if (!class_number || !batch) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Get unique students using DISTINCT
+    const students = await StudentMarks.findAll({
+      attributes: [
+        [sequelize.fn("DISTINCT", sequelize.col("admission_no")), "admission_no"],
+        "student_name",
+      ],
+      where: {
+        class_number: Number(class_number),
+        batch: batch,
+      },
+      order: [["student_name", "ASC"]],
+      raw: true,
+    });
+
+    res.json({
+      success: true,
+      data: students,
+    });
+  } catch (err) {
+    console.error("STUDENT FETCH FAILED:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 /* =========================
-   DYNAMIC BATCH FILTER (FIX)
+   DYNAMIC batch FILTER
 ========================= */
 app.get("/filters/batches", async (req, res) => {
   try {
     const where = {};
     if (req.query.class_number) {
-      where.class_number = req.query.class_number;
+      where.class_number = Number(req.query.class_number);
     }
 
     const rows = await StudentMarks.findAll({
@@ -133,13 +167,33 @@ app.get("/filters/batches", async (req, res) => {
 
     res.json({
       success: true,
-      data: rows.map((r) => r.batch),
+      data: rows.map(r => r.batch),
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+/* =========================
+   DYNAMIC CLASS FILTER
+========================= */
+app.get("/filters/classes", async (req, res) => {
+  try {
+    const rows = await StudentMarks.findAll({
+      attributes: [
+        [Sequelize.fn("DISTINCT", Sequelize.col("class_number")), "class_number"],
+      ],
+      order: [[Sequelize.col("class_number"), "ASC"]],
+      raw: true,
+    });
 
+    res.json({
+      success: true,
+      data: rows.map(r => r.class_number),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 /* =====================================================
    BAR CHART 1️⃣ PERFORMANCE DISTRIBUTION
 ===================================================== */
