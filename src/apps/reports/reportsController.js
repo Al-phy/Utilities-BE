@@ -1,9 +1,101 @@
 import { 
   getReportCardData,
-  renderReportCardChartPNG 
+  renderReportCardChartPNG,
+  getDistinctClasses,
+  getDistinctBatchesByClass,
+  getStudentsByClassAndBatch,
+  saveTermRemark,
 } from "./service1.js";
 import { reportCardHTML } from "../templates/reportCardTemplate.js";
 import { generatePDF } from "../../utils/geneatePdf.js";
+
+// =====================================================
+// NEW ENDPOINTS FOR REPORT CARD GENERATION
+// =====================================================
+
+/**
+ * Get all distinct classes for report card generation
+ * @route GET /reports/classes
+ */
+export const getClassesForReport = async (req, res) => {
+  try {
+    const classes = await getDistinctClasses();
+    
+    res.json({
+      success: true,
+      data: classes
+    });
+  } catch (error) {
+    console.error('Error in getClassesForReport:', error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching classes",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get batches for a specific class
+ * @route GET /reports/classes/:classNumber/batches
+ */
+export const getBatchesForClass = async (req, res) => {
+  try {
+    const { classNumber } = req.params;
+    
+    if (!classNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Class parameter is required"
+      });
+    }
+    
+    const batches = await getDistinctBatchesByClass(parseInt(classNumber));
+    
+    res.json({
+      success: true,
+      data: batches
+    });
+  } catch (error) {
+    console.error('Error in getBatchesForClass:', error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching batches",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get students by class and batch
+ * @route GET /reports/students-by-class-batch
+ */
+export const getStudentsByClassBatch = async (req, res) => {
+  try {
+    const { class: classNumber, batch } = req.query;
+    
+    if (!classNumber || !batch) {
+      return res.status(400).json({
+        success: false,
+        message: "Class and batch parameters are required"
+      });
+    }
+    
+    const students = await getStudentsByClassAndBatch(parseInt(classNumber), batch);
+    
+    res.json({
+      success: true,
+      data: students
+    });
+  } catch (error) {
+    console.error('Error in getStudentsByClassBatch:', error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching students",
+      error: error.message
+    });
+  }
+};
 
 /**
  * Generate Report Card PDF
@@ -100,5 +192,42 @@ export const getReportCardDataJSON = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+export const saveTermRemarkController = async (req, res) => {
+  try {
+    const { admission_no, term, year, remark, created_by } = req.body;
+    
+    console.log("Saving remark for:", { admission_no, term, year });
+    
+    if (!admission_no || !term || !year) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields"
+      });
+    }
+    
+    const result = await saveTermRemark({
+      admission_no,
+      term,
+      year,
+      remark,
+      created_by: created_by || "teacher_demo"
+    });
+    
+    res.json({
+      success: true,
+      message: "Remark saved successfully",
+      data: result
+    });
+    
+  } catch (error) {
+    console.error("Error in saveTermRemarkController:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save remark",
+      error: error.message
+    });
   }
 };

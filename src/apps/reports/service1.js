@@ -1,7 +1,7 @@
 import { Sequelize } from "sequelize";
 import puppeteer from 'puppeteer';
 import StudentMarks from "../../models/Student.js";
-import StudentTermRemark from "../../models/StudentRemarks.js";
+import StudentTermRemark from "../../models/studentRemarks.js";
 
 // =====================================================
 // UTILITY FUNCTIONS
@@ -175,7 +175,6 @@ export const getBatchesByClass = async (class_number) => {
 // =====================================================
 // REPORT CARD SERVICES
 // =====================================================
-
 /**
  * Get complete report card data for a student
  * @param {Object} params - { admission_no, term }
@@ -194,13 +193,14 @@ export async function getReportCardData({ admission_no, term }) {
 
   const report = rows.map((r) => {
     const percentage = (r.scored_mark / r.max_mark) * 100;
-    const { grade } = getGradeAndRemark(percentage);
+    const { grade, remark } = getGradeAndRemark(percentage); // Get both grade and remark
     return {
       subject: r.subject,
       max_mark: r.max_mark,
       scored_mark: r.scored_mark,
       percentage: percentage.toFixed(2),
       grade,
+      remark // Include the remark
     };
   });
 
@@ -223,7 +223,7 @@ export async function getReportCardData({ admission_no, term }) {
     },
     data: report,
     graphic_data: await getChartDataInputs({ admission_no, term }),
-    term_remark: termRemark ? termRemark.remark : "—",
+    term_remark: termRemark ? termRemark.remark : "",
   };
 }
 
@@ -386,3 +386,98 @@ export async function renderReportCardChartPNG(graphic_data) {
     throw error;
   }
 }
+
+// Add these to your existing service1.js file
+// =====================================================
+// NEW FUNCTIONS FOR REPORT CARD GENERATION
+// =====================================================
+
+/**
+ * Get distinct classes from StudentMarks
+ */
+export const getDistinctClasses = async () => {
+  try {
+    const classes = await StudentMarks.findAll({
+      attributes: [
+        [Sequelize.fn('DISTINCT', Sequelize.col('class_number')), 'class_number']
+      ],
+      order: [['class_number', 'ASC']],
+      raw: true
+    });
+    
+    return classes.map(c => c.class_number);
+  } catch (error) {
+    console.error('Error fetching distinct classes:', error);
+    return [];
+  }
+};
+
+/**
+ * Get distinct batches for a class
+ */
+export const getDistinctBatchesByClass = async (class_number) => {
+  try {
+    const batches = await StudentMarks.findAll({
+      attributes: [
+        [Sequelize.fn('DISTINCT', Sequelize.col('batch')), 'batch']
+      ],
+      where: { class_number },
+      order: [['batch', 'ASC']],
+      raw: true
+    });
+    
+    return batches.map(b => b.batch);
+  } catch (error) {
+    console.error('Error fetching batches for class:', error);
+    return [];
+  }
+};
+
+/**
+ * Get students by class and batch
+ */
+export const getStudentsByClassAndBatch = async (class_number, batch) => {
+  try {
+    const students = await StudentMarks.findAll({
+      attributes: [
+        'admission_no',
+        'student_name'
+      ],
+      where: { class_number, batch },
+      group: ['admission_no', 'student_name'],
+      order: [['student_name', 'ASC']],
+      raw: true
+    });
+    
+    return students;
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    return [];
+  }
+};
+
+/**
+ * Get student details with summary
+ */
+export const getStudentSummary = async (admission_no) => {
+  try {
+    const student = await StudentMarks.findOne({
+      attributes: [
+        'admission_no',
+        'student_name',
+        'class_number',
+        'batch',
+        [Sequelize.fn('COUNT', Sequelize.col('subject')), 'subject_count'],
+        [Sequelize.fn('AVG', Sequelize.literal('scored_mark / max_mark * 100')), 'avg_percentage']
+      ],
+      where: { admission_no },
+      group: ['admission_no', 'student_name', 'class_number', 'batch'],
+      raw: true
+    });
+    
+    return student;
+  } catch (error) {
+    console.error('Error fetching student summary:', error);
+    return null;
+  }
+};
